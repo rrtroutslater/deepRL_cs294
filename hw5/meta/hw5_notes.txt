@@ -1,0 +1,24 @@
+goal: use "knowledge" gained from one task to help learn new tasks in a very small number of trials
+
+trial:
+    - set of episodes collected for a single task
+    - analogous to a batch of trajectories used in PG training
+
+using a previously trained policy and fine tuning it with new trajectories is not robust in practice.
+because it may be impossible to leave the optimum discovered when training on the previous task.
+
+MDP has distribution pM: M->R+, where M=(S, A, P, r, rho, gamma, T)
+    - S: state space
+    - A: action space 
+    - P: state transition probabilities
+    - r: reward function
+    - rho: initial state distribution
+    - gamma: discount factor
+    - T: horizon
+
+condition policy on "context" which encodes the task. context is a function of agents prior experiences.
+Given M~pM, policy acts initially conditioned on empty context.  As information is computed (by trying
+different actions), policy infers information about the task. 
+
+recurrent policy 
+    - concatenate (s, a, r, d) tuples across time, feed as input into policy. d = episode end flag.
