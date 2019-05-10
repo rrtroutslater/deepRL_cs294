@@ -27,8 +27,9 @@ from point_mass_observed_rr import ObservedPointEnv
 # utilities
 def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
     """
-    minimized objective using optimizer w.r.t variables in var_list while ensuring the norm of the
-    gradients for each variable is clipped to clip_val
+    minimized `objective` using `optimizer` w.r.t. variables in
+    `var_list` while ensure the norm of the gradients for each
+    variable is clipped to `clip_val`
     """
     gradients = optimizer.compute_gradients(objective, var_list=var_list)
     for i, (grad, var) in enumerate(gradients):
@@ -36,8 +37,9 @@ def minimize_and_clip(optimizer, objective, var_list, clip_val=10):
             gradients[i] = (tf.clip_by_norm(grad, clip_val), var)
     return optimizer.apply_gradients(gradients)
 
-def build_mlp(x, output_size, scope, n_layers, size, activation=tf.tanh, output_activation=None, 
-        regularizer=None):
+
+def build_mlp(
+    x, output_size, scope, n_layers, size, activation=tf.tanh, output_activation=None, regularizer=None):
     """
     builds a feedforward neural network
 
@@ -59,6 +61,7 @@ def build_mlp(x, output_size, scope, n_layers, size, activation=tf.tanh, output_
         inputs=x, units=output_size, activation=output_activation, name='fc{}'.format(i + 1), 
         kernel_regularizer=regularizer, bias_regularizer=regularizer)
     return x
+
 
 def build_rnn(x, h, output_size, scope, n_layers, size, activation=tf.tanh, 
         output_activation=None, regularizer=None):
@@ -115,14 +118,13 @@ def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=T
     """
     with tf.variable_scope(scope, reuse=tf.AUTO_REUSE):
         if recurrent:
-            print('\n******USING RECURRENT NETWORK\n\n')
             x, h = build_rnn(
-                x, h, gru_size, scope, n_layers, size, activation=activation, output_activation=activation)
+                x, h, gru_size, scope, n_layers, size, activation=activation, 
+                output_activation=activation)
         else:
             x = tf.reshape(x, (-1, x.get_shape()[1]*x.get_shape()[2]))
-            x = build_mlp(
-                x, gru_size, scope, n_layers + 1, size, activation=activation, output_activation=activation)
-        
+            x = build_mlp(x, gru_size, scope, n_layers + 1, size, activation=activation, 
+            output_activation=activation)
         x = tf.layers.dense(
             x, output_size, activation=output_activation, 
             kernel_initializer=tf.initializers.truncated_normal(mean=0.0, stddev=0.01), 
@@ -130,7 +132,8 @@ def build_policy(x, h, output_size, scope, n_layers, size, gru_size, recurrent=T
     return x, h
 
 
-def build_critic(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, activation=tf.tanh, output_activation=None, regularizer=None):
+def build_critic(x, h, output_size, scope, n_layers, size, gru_size, recurrent=True, 
+        activation=tf.tanh, output_activation=None, regularizer=None):
     """
     build recurrent critic
 
@@ -150,7 +153,6 @@ def build_critic(x, h, output_size, scope, n_layers, size, gru_size, recurrent=T
             x = build_mlp(
                 x, gru_size, scope, n_layers + 1, size, activation=activation, 
                 output_activation=activation, regularizer=regularizer)
-        
         x = tf.layers.dense(
             x, output_size, activation=output_activation, name='decoder', 
             kernel_regularizer=regularizer, bias_regularizer=regularizer)
@@ -345,7 +347,10 @@ class Agent(object):
 
         # PPO critic update
         critic_regularizer = tf.contrib.layers.l2_regularizer(1e-3) if self.l2reg else None
-        self.critic_prediction = tf.squeeze(build_critic(self.sy_ob_no, self.sy_hidden, 1, 'critic_network', n_layers=self.n_layers, size=self.size, gru_size=self.gru_size, recurrent=self.recurrent, regularizer=critic_regularizer))
+        self.critic_prediction = tf.squeeze(build_critic(
+            self.sy_ob_no, self.sy_hidden, 1, 'critic_network', n_layers=self.n_layers, 
+            size=self.size, gru_size=self.gru_size, recurrent=self.recurrent, 
+            regularizer=critic_regularizer))
         self.sy_target_n = tf.placeholder(shape=[None], name="critic_target", dtype=tf.float32)
         self.critic_loss = tf.losses.mean_squared_error(self.sy_target_n, self.critic_prediction)
         self.critic_weights = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='critic_network')
@@ -391,9 +396,8 @@ class Agent(object):
             val: whether this is training or evaluation
         """
 
-        env.reset_task(is_evaluation=is_evaluation)
+        env.reset_task(is_evaluation=is_evaluation)#, train_test=self.train_test)
         stats = []
-        # TODO; problem 1 - construcitng meta observations and sampling trajectory
 
         ep_steps = 0
         steps = 0
@@ -416,6 +420,7 @@ class Agent(object):
             # in_ = meta_obs[steps-self.history:steps]
             in_ = meta_obs[steps:(steps+self.history)]
             hidden = np.zeros((1, self.gru_size), dtype=np.float32)
+            # print('\nin:\t', in_.shape)
 
             # get action from policy
             ac = self.sess.run(
@@ -426,7 +431,7 @@ class Agent(object):
                 })[0]
 
             # step environment
-            ob, rew, done, _ = env.step(ac[0])
+            ob, rew, done, _ = env.step(ac)
             ep_steps += 1
             done = bool(done) or ep_steps == self.max_path_length
 
@@ -438,7 +443,7 @@ class Agent(object):
             # construct meta-observation and add it to meta_obs
             meta_obs[steps + self.history] = np.concatenate([ob, ac, [rew], [done]], axis=0)
             # print('in:\n', in_)
-            # print('meta:\n', meta_obs)
+            # print('meta:\n', meta_obs[steps + self.history].shape)
 
             rewards.append(rew)
             steps += 1
@@ -482,7 +487,10 @@ class Agent(object):
         bsize = len(re_n)
         rewards = np.squeeze(re_n)
         masks = np.squeeze(masks)
-        values = self.sess.run(self.critic_prediction, feed_dict={self.sy_ob_no: ob_no, self.sy_hidden: hidden})[:,None]
+        values = self.sess.run(self.critic_prediction, 
+            feed_dict={
+                self.sy_ob_no: ob_no, 
+                self.sy_hidden: hidden})[:,None]
         gamma = self.gamma
 
         assert rewards.shape == masks.shape == (bsize,)
@@ -556,15 +564,14 @@ class Agent(object):
         returns:
             critic loss
         """
-        target_n = (q_n - np.mean(q_n)) / (np.std(q_n) + 1e-8)
-        
+        target_n = (q_n - np.mean(q_n))/(np.std(q_n)+1e-8)
         for k in range(self.num_value_iters):
-            critic_loss, _, = self.sess.run(
+            critic_loss, _ = self.sess.run(
                 [self.critic_loss, self.critic_update_op],
                 feed_dict={
-                    self.sy_target_n : target_n, 
-                    self.sy_hidden : hidden, 
-                    self.sy_ob_no : ob_no})    
+                    self.sy_target_n: target_n, 
+                    self.sy_ob_no: ob_no, 
+                    self.sy_hidden: hidden})
         return critic_loss
 
 

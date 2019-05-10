@@ -23,41 +23,61 @@ class PointEnv(Env):
         if 'is_evaluation' is true, sample from the evaluatoin set,
         otherwise sample from the training set
         """
-        # TODO: problem 3
-
         x = np.random.uniform(-10, 10)
         y = np.random.uniform(-10, 10)
+
+        # checkerboard pattern for evaluation vs. training
+        # odd -> training, even -> test
+        if is_evaluation:
+            if not np.abs(x) % 2 > 1:
+                if x < 0:
+                    x -= 1
+                else:
+                    x += 1
+            if not np.abs(y) % 2 > 1:
+                if y < 0:
+                    y -= 1
+                else:
+                    y += 1
+        else:
+            if not np.abs(x) % 2 < 1:
+                if x < 0:
+                    x += 1
+                else:
+                    x -= 1
+            if not np.abs(y) % 2 < 1:
+                if y < 0:
+                    y += 1
+                else:
+                    y -= 1
         self._goal = np.array([x, y])
 
     def reset(self):
         self._state = np.array([0, 0], dtype=np.float32)
         return self._get_obs()
-    
+
     def _get_obs(self):
         return np.copy(self._state)
 
     def reward_function(self, x, y):
-        return - (x**2 + y**2) ** 0.5
-        # return (x**2 + y**2) ** 0.5
-    
+        return - (x ** 2 + y ** 2) ** 0.5
+
     def step(self, action):
-        x, y = self._state 
+        x, y = self._state
         # compute reward, add penalty for large actions instead of clipping them
         x -= self._goal[0]
-        y -= self._goal[1] 
-
+        y -= self._goal[1]
         # check if task is complete
-        done = abs(x) < 0.01 and abs(y) < 0.01
+        done = abs(x) < .01 and abs(y) < .01
         reward = self.reward_function(x, y)
-
         # move to next state
-        self._state = self._state + action 
+        self._state = self._state + action
         ob = self._get_obs()
         return ob, reward, done, dict()
 
     def viewer_setup(self):
         print('no viewer')
-        pass 
+        pass
 
     def render(self):
         print('current state:', self._state)
